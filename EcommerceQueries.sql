@@ -216,3 +216,37 @@ FROM (
 from orders
 GROUP BY delivery_status
 );
+
+/*Late deliveries*/
+SELECT count(*) FROM
+(
+    SELECT order_id, 
+    order_delivered_customer_date - order_estimated_delivery_date 
+    as late_deliveries 
+    FROM orders
+    WHERE late_deliveries > 0
+);
+
+/*% of orders delivered late vs on time*/
+SELECT delivered_time, total_delivered, ROUND(total_delivered*100.0/SUM(total_delivered) over (),2) AS late_del_percent, total_delivered FROM(
+    SELECT 
+        CASE 
+            WHEN JULIANDAY(order_delivered_customer_date) > JULIANDAY(order_estimated_delivery_date) THEN 'late_deliveries'
+            ELSE 'on_time'
+        END AS delivered_time, count(*) as total_delivered
+    FROM orders 
+    WHERE order_status = 'delivered'
+    GROUP BY delivered_time
+);
+
+/*Lifetime value of each customer*/
+SELECT sum(p.payment_value) as revenue_per_customer, 
+count(o.order_id) as ordersPercustomer, c.customer_unique_id from 
+payments p 
+join orders o 
+on p.order_id = o.order_id 
+join customers c 
+on o.customer_id = c.customer_id 
+group by customer_unique_id
+ORDER BY revenue_per_customer DESC, 
+ordersPercustomer DESC;
