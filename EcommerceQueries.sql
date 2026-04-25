@@ -250,3 +250,17 @@ on o.customer_id = c.customer_id
 group by customer_unique_id
 ORDER BY revenue_per_customer DESC, 
 ordersPercustomer DESC;
+
+/*RFM Analysis*/
+SELECT c.customer_unique_id, 
+(MAX(o.order_purchase_timestamp) OVER ()) - MAX(DATE(o.order_purchase_timestamp)) as recency, 
+count(DISTINCT o.order_id) as frequency,
+sum(p.payment_value) as monetory 
+FROM orders o 
+JOIN customers c 
+ON c.customer_id = o.customer_id
+join payments p 
+ON p.order_id = o.order_id
+GROUP BY c.customer_unique_id
+ORDER BY recency, 
+frequency DESC, monetory DESC;
