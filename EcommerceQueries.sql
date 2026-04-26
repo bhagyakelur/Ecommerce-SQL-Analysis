@@ -65,6 +65,8 @@ WHERE payment_value <= 0;
 SELECT order_status, count(*) FROM orders
 GROUP BY order_status;
 
+--Data fetching:
+
 /*Revenue per city*/
 /*Sao paulo has both highest number of customers and highest revenue.*/
 SELECT c.customer_city, SUM(p.payment_value) as revenue
@@ -111,16 +113,28 @@ GROUP BY ct.product_category_name_english
 ORDER BY No_of_orderItems DESC;
 
 /*Top product categories by revenue*/
-/*The below query calculates the top product categories based on the no of revenue collected. 
-Health beauty products collect the highest revenue i.e. 1258681.34 where as it is 2nd Top product category based on number of items sold.*/
-SELECT ct.product_category_name_english, SUM(oi.price) AS total_revenue
-FROM category_translation ct 
-JOIN products pr ON
-pr.product_category_name = ct.product_category_name
-JOIN order_items oi ON
-oi.product_id = pr.product_id
-GROUP BY ct.product_category_name_english 
-ORDER BY total_revenue DESC;
+/*The below query calculates the top product categories based on the amount of revenue collected. 
+health_beauty products collect the highest revenue i.e. 1441283.824, it is also Top 2nd product category based on number of items sold.*/
+WITH order_payment AS (
+    SELECT order_id, SUM(payment_value) AS total_payment
+    FROM payments
+    GROUP BY order_id
+),
+order_total_price AS (
+    SELECT order_id, SUM(price) AS total_order_price
+    FROM order_items
+    GROUP BY order_id
+)
+SELECT ct.product_category_name_english AS category,
+SUM((oi.price / otp.total_order_price) * op.total_payment) 
+AS revenue
+FROM order_items oi
+JOIN order_payment op ON oi.order_id = op.order_id
+JOIN order_total_price otp ON oi.order_id = otp.order_id
+JOIN products pr ON oi.product_id = pr.product_id
+JOIN category_translation ct ON pr.product_category_name = ct.product_category_name
+GROUP BY category
+ORDER BY revenue DESC;
 
 /*Top 5 customers by revenue*/
 /*This query fetches the top 5 customers based on total revenue the company gets per each customer
@@ -255,12 +269,80 @@ ordersPercustomer DESC;
 SELECT c.customer_unique_id, 
 (MAX(o.order_purchase_timestamp) OVER ()) - MAX(DATE(o.order_purchase_timestamp)) as recency, 
 count(DISTINCT o.order_id) as frequency,
-sum(p.payment_value) as monetory 
-FROM orders o 
-JOIN customers c 
+sum(p.payment_value) as monetary
+FROM orders o
+JOIN customers c
 ON c.customer_id = o.customer_id
-join payments p 
+join payments p
 ON p.order_id = o.order_id
 GROUP BY c.customer_unique_id
 ORDER BY recency, 
-frequency DESC, monetory DESC;
+frequency DESC, monetary DESC;
+
+/*Seasonality trends*/
+SELECT COUNT(*) as noOforders, 
+STRFTIME('%m', order_purchase_timestamp) as monthly
+FROM orders
+GROUP BY monthly;
+
+/*Top selling products*/
+SELECT COUNT(oi.order_item_id) 
+as no_of_order_items,  
+ct.product_category_name_english 
+FROM category_translation ct
+JOIN products pr ON pr.product_category_name = ct.product_category_name
+JOIN order_items oi ON oi.product_id = pr.product_id
+GROUP BY ct.product_category_name_english  
+ORDER BY no_of_order_items DESC;
+
+/*Customer classification based on RFM*/
+SELECT customer_unique_id, 
+    CASE 
+        WHEN recency = 0 AND frequency > 4 AND monetary > 850 
+            THEN 'VIP'
+        WHEN recency >= 1 AND frequency >= 5
+            THEN 'Loyal'
+        WHEN monetary > 2000 
+            THEN 'Big Spender'
+        WHEN recency >= 2 
+            THEN 'At Risk'
+        ELSE 'Low Value'
+    END AS customer_category FROM (
+        SELECT c.customer_unique_id, 
+        (MAX(o.order_purchase_timestamp) OVER ()) - MAX(DATE(o.order_purchase_timestamp)) as recency, 
+        count(DISTINCT o.order_id) as frequency,
+        sum(p.payment_value) as monetary FROM orders o 
+        JOIN customers c 
+        ON c.customer_id = o.customer_id
+        join payments p 
+        ON p.order_id = o.order_id
+        GROUP BY c.customer_unique_id
+        ORDER BY recency, 
+        frequency DESC, monetary DESC
+);
+
+/*Number of customers in each category*/
+SELECT  
+    CASE 
+        WHEN recency = 0 AND frequency > 4 AND monetary > 850 
+            THEN 'VIP'
+        WHEN recency >= 1 AND frequency >= 5
+            THEN 'Loyal'
+        WHEN monetary > 2000 
+            THEN 'Big Spender'
+        WHEN recency >= 2 
+            THEN 'At Risk'
+        ELSE 'Low Value'
+    END AS customer_category, count(*) as numOfCustomers FROM (
+        SELECT c.customer_unique_id, 
+        (MAX(o.order_purchase_timestamp) OVER ()) - MAX(DATE(o.order_purchase_timestamp)) as recency, 
+        count(DISTINCT o.order_id) as frequency,
+        sum(p.payment_value) as monetary FROM orders o 
+        JOIN customers c 
+        ON c.customer_id = o.customer_id
+        join payments p 
+        ON p.order_id = o.order_id
+        GROUP BY c.customer_unique_id
+    )
+GROUP BY customer_category
+ORDER BY numOfCustomers;
