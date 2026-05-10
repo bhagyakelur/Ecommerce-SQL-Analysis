@@ -31,4 +31,4 @@ This project analyzes ecommerce sales data using SQL and Tableau to uncover busi
 [View Dashboard](https://public.tableau.com/app/profile/bhagyalaxmi.kelur/viz/Ecommerce_Sales_Dashboard_17784014025550/EcommerceSalesDashboard)
 
 ## Dashboard Preview
-![Dashboard](dashboard.png)
+![Dashboard](Ecommerce_dashboard_image.png)
